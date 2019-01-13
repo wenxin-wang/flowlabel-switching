@@ -1,0 +1,16 @@
+GPATH
+GRTAGS
+GTAGS
+
+.tmp_versions
+.cache.mk
+*.o
+*.ko
+*.mod.c
+*.d
+*.tar
+*.tar.*
+*.a
+*.cmd
+*.tmp
+*.so

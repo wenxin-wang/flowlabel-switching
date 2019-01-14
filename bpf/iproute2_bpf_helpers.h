@@ -30,4 +30,12 @@
     (*NAME)(__VA_ARGS__) = (void *)BPF_FUNC_##NAME
 #endif
 
+static void *BPF_FUNC(
+    skb_load_bytes, const struct __sk_buff *skb, __u32 offset,
+    void *to, __u32 len);
+static void *BPF_FUNC(
+    skb_store_bytes, const struct __sk_buff *skb, __u32 offset,
+    void *from, __u32 len, __u64 flags);
+static void *BPF_FUNC(map_lookup_elem, void *map, const void *key);
+
 #endif

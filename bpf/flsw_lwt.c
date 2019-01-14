@@ -15,14 +15,6 @@
 #define FLOWLABEL_OFF offsetof(struct ipv6hdr, flow_lbl)
 #define DADDR_OFF offsetof(struct ipv6hdr, daddr)
 
-static void *BPF_FUNC(
-    skb_load_bytes, const struct __sk_buff *skb, __u32 offset,
-    void *to, __u32 len);
-static void *BPF_FUNC(
-    skb_store_bytes, const struct __sk_buff *skb, __u32 offset,
-    void *from, __u32 len, __u64 flags);
-static void *BPF_FUNC(map_lookup_elem, void *map, const void *key);
-
 struct lpm_key_6 {
 	__u32	prefixlen;     // Always set to 128 for looking up
     struct in6_addr addr;

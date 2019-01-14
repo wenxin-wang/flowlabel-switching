@@ -1,10 +1,8 @@
+#include "flsw_lwt.h"
 #include "iproute2_bpf_helpers.h"
 
 #include <stddef.h>
-#include <linux/ipv6.h>
 #include <linux/if_ether.h>
-
-#define MAX_LABEL_ENTRIES 256
 
 // Flowlabel is 12-31 bit of an ipv6 header (20 bits),
 // but lwt xmit bpf can only load and store bytes.
@@ -15,12 +13,8 @@
 #define FLOWLABEL_OFF offsetof(struct ipv6hdr, flow_lbl)
 #define DADDR_OFF offsetof(struct ipv6hdr, daddr)
 
-struct lpm_key_6 {
-	__u32	prefixlen;     // Always set to 128 for looking up
-    struct in6_addr addr;
-};
-
 struct bpf_elf_map flsw_lpm_label_map __section("maps") = {
+    .id             = 1,
     .type           = BPF_MAP_TYPE_LPM_TRIE,
     .size_key       = sizeof(struct lpm_key_6),
     .size_value     = sizeof(__u32),
@@ -29,20 +23,28 @@ struct bpf_elf_map flsw_lpm_label_map __section("maps") = {
 	.flags          = BPF_F_NO_PREALLOC,
 };
 
-__section("label")
-int do_label(struct __sk_buff *skb)
+struct bpf_elf_map flsw_lpm_label_maps __section("maps") = {
+	.type           = BPF_MAP_TYPE_ARRAY_OF_MAPS,
+	.size_key       = sizeof(__u32),
+    .size_value     = sizeof(__u32), // seems that all map_in_map's have this value size
+	.inner_id       = 1,
+    .pinning        = PIN_GLOBAL_NS,
+	.max_elem       = MAX_LABEL_MAPS,
+};
+
+static __always_inline int do_inline_label(void *label_map, struct __sk_buff *skb)
 {
     struct lpm_key_6 key6;
-    __u32 label = 0; // only use the lower 20 bits
-    __u32 *plabel;
     __u8 flow_lbl[3];
+    __u32 *plabel;
+    __u32 label = 0; // only use the lower 20 bits
     if (skb->protocol != __constant_htons(ETH_P_IPV6))
         return BPF_OK;
 
     skb_load_bytes(skb, FLOWLABEL_OFF, flow_lbl, 3);
     skb_load_bytes(skb, DADDR_OFF, &key6.addr, sizeof(key6.addr));
     key6.prefixlen = 128;
-    plabel = map_lookup_elem(&flsw_lpm_label_map, &key6);
+    plabel = map_lookup_elem(label_map, &key6);
     if (plabel)
         label = *plabel;
 
@@ -52,6 +54,24 @@ int do_label(struct __sk_buff *skb)
     skb_store_bytes(skb, FLOWLABEL_OFF, flow_lbl, 3, 0);
 
     return BPF_OK;
+}
+
+
+__section("label")
+int do_label(struct __sk_buff *skb)
+{
+    return do_inline_label(&flsw_lpm_label_map, skb);
+}
+
+__section("mtlabel")
+int do_mtlabel(struct __sk_buff *skb)
+{
+    __u32 map_id = 0;
+    void *label_map;
+    label_map = map_lookup_elem(&flsw_lpm_label_maps, &map_id);
+    if (!label_map)
+        return BPF_OK;
+    return do_inline_label(label_map, skb);
 }
 
 __section("unlabel")

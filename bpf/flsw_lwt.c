@@ -38,7 +38,7 @@ struct bpf_elf_map flsw_lpm_label_map __section("maps") = {
 };
 
 __section("label")
-int do_flowlabelswitch(struct __sk_buff *skb)
+int do_label(struct __sk_buff *skb)
 {
     struct lpm_key_6 key6;
     __u32 label = 0; // only use the lower 20 bits
@@ -57,6 +57,23 @@ int do_flowlabelswitch(struct __sk_buff *skb)
     flow_lbl[0] = (0xF0 & flow_lbl[0]) | (0x0F & (label >> 16));
     flow_lbl[1] = (__u8)(label >> 8);
     flow_lbl[2] = (__u8)label;
+    skb_store_bytes(skb, FLOWLABEL_OFF, flow_lbl, 3, 0);
+
+    return BPF_OK;
+}
+
+__section("unlabel")
+int do_unlabel(struct __sk_buff *skb)
+{
+    __u8 flow_lbl[3];
+    if (skb->protocol != __constant_htons(ETH_P_IPV6))
+        return BPF_OK;
+
+    skb_load_bytes(skb, FLOWLABEL_OFF, flow_lbl, 1);
+
+    flow_lbl[0] = (0xF0 & flow_lbl[0]);
+    flow_lbl[1] = 0;
+    flow_lbl[2] = 0;
     skb_store_bytes(skb, FLOWLABEL_OFF, flow_lbl, 3, 0);
 
     return BPF_OK;

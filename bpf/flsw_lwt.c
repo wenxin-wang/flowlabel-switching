@@ -32,21 +32,11 @@ struct bpf_elf_map flsw_lpm_label_maps __section("maps") = {
 	.max_elem       = MAX_LABEL_MAPS,
 };
 
-static __always_inline int do_inline_label(void *label_map, struct __sk_buff *skb)
+static __always_inline int set_label(__u32 label, struct __sk_buff *skb)
 {
-    struct lpm_key_6 key6;
     __u8 flow_lbl[3];
-    __u32 *plabel;
-    __u32 label = 0; // only use the lower 20 bits
-    if (skb->protocol != __constant_htons(ETH_P_IPV6))
-        return BPF_OK;
 
     skb_load_bytes(skb, FLOWLABEL_OFF, flow_lbl, 3);
-    skb_load_bytes(skb, DADDR_OFF, &key6.addr, sizeof(key6.addr));
-    key6.prefixlen = 128;
-    plabel = map_lookup_elem(label_map, &key6);
-    if (plabel)
-        label = *plabel;
 
     flow_lbl[0] = (0xF0 & flow_lbl[0]) | (0x0F & (label >> 16));
     flow_lbl[1] = (__u8)(label >> 8);
@@ -56,11 +46,31 @@ static __always_inline int do_inline_label(void *label_map, struct __sk_buff *sk
     return BPF_OK;
 }
 
+static __always_inline int lpm_label(void *label_map, struct __sk_buff *skb)
+{
+    struct lpm_key_6 key6;
+    __u32 *plabel;
+
+    skb_load_bytes(skb, DADDR_OFF, &key6.addr, sizeof(key6.addr));
+    key6.prefixlen = 128;
+    plabel = map_lookup_elem(label_map, &key6);
+    return set_label(plabel ? *plabel : 0, skb);
+}
 
 __section("label")
 int do_label(struct __sk_buff *skb)
 {
-    return do_inline_label(&flsw_lpm_label_map, skb);
+    if (skb->protocol != __constant_htons(ETH_P_IPV6))
+        return BPF_OK;
+    return lpm_label(&flsw_lpm_label_map, skb);
+}
+
+__section("label-fwmk")
+int do_labelfwmk(struct __sk_buff *skb)
+{
+    if (skb->protocol != __constant_htons(ETH_P_IPV6))
+        return BPF_OK;
+    return set_label(skb->mark, skb);
 }
 
 __section("mtlabel")
@@ -68,10 +78,13 @@ int do_mtlabel(struct __sk_buff *skb)
 {
     __u32 map_id = 0;
     void *label_map;
+    if (skb->protocol != __constant_htons(ETH_P_IPV6))
+        return BPF_OK;
+
     label_map = map_lookup_elem(&flsw_lpm_label_maps, &map_id);
     if (!label_map)
         return BPF_OK;
-    return do_inline_label(label_map, skb);
+    return lpm_label(label_map, skb);
 }
 
 __section("unlabel")

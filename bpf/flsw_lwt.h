@@ -4,6 +4,8 @@
 #define MAX_LABEL_MAPS 256
 #define MAX_LABEL_ENTRIES 256
 
+#define MAX_LABEL ((1<<20) - 1)
+
 #include <linux/ipv6.h>
 
 struct lpm_key_6 {

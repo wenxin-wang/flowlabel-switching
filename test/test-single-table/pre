@@ -1,0 +1,89 @@
+#!/bin/bash
+
+#                 R2
+#    a::   c:: /      \ d::  e::
+#   H0   -   R0  ----  R1   -   H1
+#                 b::
+
+__DIR__=$(cd ${BASH_SOURCE[0]%/*} && pwd)
+__SRC__=$(cd $__DIR__/../.. && pwd)
+__TOOLS__=$__SRC__/tools
+__BPF__=$__SRC__/bpf
+
+ip netns add ns-h0
+ip netns add ns-h1
+ip netns add ns-r0
+ip netns add ns-r1
+ip netns add ns-r2
+ip netns exec ns-r0 sysctl -w net.ipv6.conf.all.forwarding=1
+ip netns exec ns-r1 sysctl -w net.ipv6.conf.all.forwarding=1
+ip netns exec ns-r2 sysctl -w net.ipv6.conf.all.forwarding=1
+
+ip l add h0r0 type veth peer name r0h0
+ip l add h1r1 type veth peer name r1h1
+ip l add r0r1 type veth peer name r1r0
+ip l add r0r2 type veth peer name r2r0
+ip l add r1r2 type veth peer name r2r1
+
+ip l set h0r0 netns ns-h0
+ip l set h1r1 netns ns-h1
+ip l set r0h0 netns ns-r0
+ip l set r0r1 netns ns-r0
+ip l set r0r2 netns ns-r0
+ip l set r1h1 netns ns-r1
+ip l set r1r0 netns ns-r1
+ip l set r1r2 netns ns-r1
+ip l set r2r0 netns ns-r2
+ip l set r2r1 netns ns-r2
+
+ip netns exec ns-h0 ip l set h0r0 up
+ip netns exec ns-h1 ip l set h1r1 up
+ip netns exec ns-r0 ip l set r0h0 up
+ip netns exec ns-r0 ip l set r0r1 up
+ip netns exec ns-r0 ip l set r0r2 up
+ip netns exec ns-r1 ip l set r1h1 up
+ip netns exec ns-r1 ip l set r1r0 up
+ip netns exec ns-r1 ip l set r1r2 up
+ip netns exec ns-r2 ip l set r2r0 up
+ip netns exec ns-r2 ip l set r2r1 up
+
+ip netns exec ns-h0 ip a add a::1/64 dev h0r0
+ip netns exec ns-r0 ip a add a::2/64 dev r0h0
+ip netns exec ns-r0 ip a add b::1/64 dev r0r1
+ip netns exec ns-r1 ip a add b::2/64 dev r1r0
+ip netns exec ns-r0 ip a add c::1/64 dev r0r2
+ip netns exec ns-r2 ip a add c::2/64 dev r2r0
+ip netns exec ns-r1 ip a add d::1/64 dev r1r2
+ip netns exec ns-r2 ip a add d::2/64 dev r2r1
+ip netns exec ns-h1 ip a add e::1/64 dev h1r1
+ip netns exec ns-r1 ip a add e::2/64 dev r1h1
+
+ip netns exec ns-h0 ip r add b::/64 via a::2
+ip netns exec ns-h0 ip r add c::/64 via a::2
+ip netns exec ns-h0 ip r add d::/64 via a::2
+ip netns exec ns-h0 ip r add e::/64 via a::2
+
+ip netns exec ns-h1 ip r add a::/64 via e::2
+ip netns exec ns-h1 ip r add b::/64 via e::2
+ip netns exec ns-h1 ip r add c::/64 via e::2
+ip netns exec ns-h1 ip r add d::/64 via e::2
+
+ip netns exec ns-r0 ip r add d::/64 via c::2
+ip netns exec ns-r0 ip r add e::/64 via b::2
+
+ip netns exec ns-r1 ip r add c::/64 via d::2
+ip netns exec ns-r1 ip r add a::/64 via b::1
+
+ip netns exec ns-r2 ip r add a::/64 via c::1
+ip netns exec ns-r2 ip r add b::/64 via c::1
+ip netns exec ns-r2 ip r add e::/64 via d::1
+
+ip netns exec ns-h0 ping -qc 1 b::1 | grep transmitted
+ip netns exec ns-h0 ping -qc 1 c::1 | grep transmitted
+ip netns exec ns-h0 ping -qc 1 d::1 | grep transmitted
+ip netns exec ns-h0 ping -qc 1 e::1 | grep transmitted
+
+ip netns exec ns-h1 ping -qc 1 a::1 | grep transmitted
+ip netns exec ns-h1 ping -qc 1 b::1 | grep transmitted
+ip netns exec ns-h1 ping -qc 1 c::1 | grep transmitted
+ip netns exec ns-h1 ping -qc 1 d::1 | grep transmitted

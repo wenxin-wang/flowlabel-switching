@@ -1,0 +1,14 @@
+#!/bin/bash
+
+ip netns del ns-h0
+ip netns del ns-h1
+ip netns del ns-r0
+ip netns del ns-r1
+ip netns del ns-r2
+
+
+ip l del h0r0
+ip l del h1r1
+ip l del r0r1
+ip l del r0r2
+ip l del r1r2

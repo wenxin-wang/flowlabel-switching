@@ -1,6 +1,8 @@
 #include "subcommands.h"
 #include "addr_utils.h"
-#include "bpf_label.h"
+#include "../bpf/flsw_edge_lwt.h"
+
+#include <bcc/libbpf.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -41,14 +43,14 @@ int edge_set(int argc, const char *argv[]) {
         return ret;
     }
 
-    fd = open_label_map(EDGE_LABEL_MAP_PATH);
+    fd = bpf_obj_get(EDGE_LABEL_MAP_PATH);
     if (fd < 0) {
         fprintf(stderr, "Error open map %s: %s\n", EDGE_LABEL_MAP_PATH, strerror(errno));
         return fd;
     }
 
     if (is_unset) {
-        ret = del_lpm_label(fd, &prefix);
+        ret = bpf_delete_elem(fd, &prefix);
         if (ret < 0) {
             printf("Error unset %s: %s\n", argv[1], strerror(errno));
         }
@@ -62,7 +64,7 @@ int edge_set(int argc, const char *argv[]) {
 		return -1;
 	}
 
-    ret = add_lpm_label(fd, &prefix, label);
+    ret = bpf_update_elem(fd, &prefix, &label, BPF_ANY);
     if (ret < 0) {
         printf("Error set %s %s: %s\n", argv[1], argv[2], strerror(errno));
     }

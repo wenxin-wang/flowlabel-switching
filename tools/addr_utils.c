@@ -5,24 +5,32 @@
 #include <stdlib.h>
 #include <linux/types.h>
 
+int parse_address6(const char *str, struct in6_addr *addr) {
+	if (inet_pton(AF_INET6, str, (void *)addr) != 1) {
+		fprintf(stderr, "error: invalid ipv6 address %s\n", str);
+		return errno ? -errno : -EINVAL;
+	}
+	return 0;
+}
+
 int parse_prefix6(const char *str, struct in6_addr *addr, __u32 *plen) {
 	int len;
 	char *slash = strchr(str, '/');
 	if (!slash) {
 		errno = EINVAL;
-		perror("error parse rule, prefix must be in the format 'prefix/length'");
+		fprintf(stderr, "error: prefix %s must be in the format 'prefix/length'\n", str);
 		return -errno;
 	}
 	*slash = '\0';
 	if (inet_pton(AF_INET6, str, (void *)addr) != 1) {
-		perror("error parse rule, the prefix part is an invalid ipv6 address");
+		fprintf(stderr, "error: the address part of the prefix is an invalid ipv6 address %s\n", str);
 		return errno ? -errno : -EINVAL;
 	}
 	*slash = '/';
 	len = atoi(slash + 1);
 	if (len <= 0 || len > 96) {
 		errno = EINVAL;
-		perror("error parse rule, the length of the prefix must be in (0, 96]");
+		fprintf(stderr, "error: prefix length %d must be in (0, 96]", len);
 		return -errno;
 	}
 	*plen = len;

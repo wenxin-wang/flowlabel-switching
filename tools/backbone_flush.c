@@ -1,5 +1,5 @@
 #include "subcommands.h"
-#include "../bpf/flsw_edge_lwt.h"
+#include "../bpf/flsw_backbone_xdp.h"
 
 #include <bcc/libbpf.h>
 
@@ -11,31 +11,31 @@
 
 extern const char *PROG_NAME;
 extern const char *FORWARD_TYPE;
-extern const char *EDGE_LABEL_MAP_PATH;
+extern const char *BACKBONE_NEXTHOP_MAP_PATH;
 
-static void edge_flush_usage(FILE *file, const char* cmd) {
+static void backbone_flush_usage(FILE *file, const char* cmd) {
 	fprintf(file,
     "Usage: %s %s %s\n",
     PROG_NAME, FORWARD_TYPE, cmd);
 }
 
-int edge_flush(int argc, const char *argv[]) {
-    struct lpm_key_6 cur, next, *pcur, *pnext;
+int backbone_flush(int argc, const char *argv[]) {
+    __u32 cur, next, *pcur, *pnext;
     int fd, ret;
 
     if (argc == 2 && (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help") ||
                       !strcmp(argv[1], "help"))) {
-		edge_flush_usage(stdout, argv[0]);
+		backbone_flush_usage(stdout, argv[0]);
 		return 0;
 	}
 	if (argc > 1) {
-		edge_flush_usage(stderr, argv[0]);
+		backbone_flush_usage(stderr, argv[0]);
 		return 1;
 	}
 
-    fd = bpf_obj_get(EDGE_LABEL_MAP_PATH);
+    fd = bpf_obj_get(BACKBONE_NEXTHOP_MAP_PATH);
     if (fd < 0) {
-        fprintf(stderr, "Error open map: %s %s\n", EDGE_LABEL_MAP_PATH, strerror(errno));
+        fprintf(stderr, "Error open map: %s %s\n", BACKBONE_NEXTHOP_MAP_PATH, strerror(errno));
         return fd;
     }
 
@@ -48,7 +48,7 @@ int edge_flush(int argc, const char *argv[]) {
 
     pnext = &next;
     do {
-        struct lpm_key_6 *tmp;
+        __u32 *tmp;
         int no_next;
         ret = bpf_get_next_key(fd, pcur, pnext);
         no_next = (ret == -1 && errno == ENOENT);

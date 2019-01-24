@@ -12,8 +12,8 @@ static const struct {
 	const char *description;
 } forwardtypes[] = {
 	{ FORWARD_T_EDGE, edge_main, "configure flowlabel edge forwarding" },
-    /*
 	{ FORWARD_T_BACKBONE, backbone_main, "configure flowlabel backbone forwarding" },
+    /*
 	{ FORWARD_T_EDGE_MT, edge_main, "configure flowlabel multi-table edge forwarding, designed for use with netns" },
 	{ FORWARD_T_BACKBONE_MT, backbone_main, "configure flowlabel multi-table backbone forwarding, designed for use with netns" },
     */

@@ -1,5 +1,5 @@
 #include "subcommands.h"
-#include "../bpf/flsw_edge_lwt.h"
+#include "../bpf/flsw_backbone_xdp.h"
 
 #include <bcc/libbpf.h>
 
@@ -11,48 +11,48 @@
 
 extern const char *PROG_NAME;
 extern const char *FORWARD_TYPE;
-extern const char *EDGE_LABEL_MAP_PATH;
+extern const char *BACKBONE_NEXTHOP_MAP_PATH;
 
-static void edge_show_usage(FILE *file, const char* cmd) {
+static void backbone_show_usage(FILE *file, const char* cmd) {
 	fprintf(file,
     "Usage: %s %s %s\n",
     PROG_NAME, FORWARD_TYPE, cmd);
 }
 
-static int print_prefix_label(int fd, struct lpm_key_6 *prefix) {
+static int print_nexthop(int fd, __u32 in_label) {
     char pref_str[INET6_ADDRSTRLEN];
-    __u32 label;
+    struct nexthop_info nhinfo;
     int ret;
-    if (!inet_ntop(AF_INET6, &(prefix->addr), pref_str, INET6_ADDRSTRLEN)) {
+    ret = bpf_lookup_elem(fd, &in_label, &nhinfo);
+    if (ret < 0) {
+        fprintf(stderr, "Error get nexthop for %s: %s\n", pref_str, strerror(errno));
+        return ret;
+    }
+    if (!inet_ntop(AF_INET6, &(nhinfo.nexthop), pref_str, INET6_ADDRSTRLEN)) {
 		perror("Error print lpm prefix");
 		return -1;
 	}
-    ret = bpf_lookup_elem(fd, prefix, &label);
-    if (ret < 0) {
-        fprintf(stderr, "Error get label for %s: %s\n", pref_str, strerror(errno));
-        return ret;
-    }
-    printf("%s/%d %d\n", pref_str, prefix->prefixlen, label);
+    printf("%d %s %d\n", in_label, pref_str, nhinfo.label);
     return 0;
 }
 
-int edge_show(int argc, const char *argv[]) {
-    struct lpm_key_6 cur, next, *pcur, *pnext;
+int backbone_show(int argc, const char *argv[]) {
+    __u32 cur, next, *pcur, *pnext;
     int fd, ret;
 
     if (argc == 2 && (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help") ||
                       !strcmp(argv[1], "help"))) {
-		edge_show_usage(stdout, argv[0]);
+		backbone_show_usage(stdout, argv[0]);
 		return 0;
 	}
 	if (argc > 1) {
-		edge_show_usage(stderr, argv[0]);
+		backbone_show_usage(stderr, argv[0]);
 		return 1;
 	}
 
-    fd = bpf_obj_get(EDGE_LABEL_MAP_PATH);
+    fd = bpf_obj_get(BACKBONE_NEXTHOP_MAP_PATH);
     if (fd < 0) {
-        fprintf(stderr, "Error open map: %s %s\n", EDGE_LABEL_MAP_PATH, strerror(errno));
+        fprintf(stderr, "Error open map: %s %s\n", BACKBONE_NEXTHOP_MAP_PATH, strerror(errno));
         return fd;
     }
 
@@ -61,25 +61,25 @@ int edge_show(int argc, const char *argv[]) {
     if (ret == -1 && errno == ENOENT)
         return 0;
     else if (ret < 0) {
-        fprintf(stderr, "Error get first label: %s\n", strerror(errno));
+        fprintf(stderr, "Error get first nexthop: %s\n", strerror(errno));
         return ret;
     }
-    ret = print_prefix_label(fd, pcur);
+    ret = print_nexthop(fd, *pcur);
     if (ret < 0) {
         return ret;
     }
 
     pnext = &next;
     do {
-        struct lpm_key_6 *tmp;
+        __u32 *tmp;
         ret = bpf_get_next_key(fd, pcur, pnext);
         if (ret == -1 && errno == ENOENT)
             break;
         else if (ret < 0) {
-            fprintf(stderr, "Error get next label: %s\n", strerror(errno));
+            fprintf(stderr, "Error get next nexthop: %s\n", strerror(errno));
             return ret;
         }
-        ret = print_prefix_label(fd, pnext);
+        ret = print_nexthop(fd, *pnext);
         if (ret < 0) {
             return ret;
         }

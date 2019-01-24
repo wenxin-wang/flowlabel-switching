@@ -1,7 +1,7 @@
 #ifndef BPF_LABEL_H
 #define BPF_LABEL_H
 
-#include "../bpf/flsw_lwt.h"
+#include "../bpf/flsw_edge_lwt.h"
 
 int open_label_map(const char* path);
 int add_lpm_label(int fd, struct lpm_key_6 *prefix, __u32 label);

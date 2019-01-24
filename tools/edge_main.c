@@ -8,7 +8,7 @@
 
 #define EDGE_LABEL_MAP_ENV "EDGE_LABEL_MAP"
 
-const char *EDGE_LABEL_MAP_PATH = "/sys/fs/bpf/ip/globals/flsw_lpm_label_map";
+const char *EDGE_LABEL_MAP_PATH = "/sys/fs/bpf/ip/globals/flsw_edge_lpm_map";
 
 extern const char *PROG_NAME;
 extern const char *FORWARD_TYPE;

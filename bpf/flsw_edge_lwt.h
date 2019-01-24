@@ -1,11 +1,7 @@
-#ifndef __FLSW_LWT_H__
-#define __FLSW_LWT_H__
+#ifndef __FLSW_EDDGE_LWT_H__
+#define __FLSW_EDDGE_LWT_H__
 
-#define MAX_LABEL_MAPS 256
-#define MAX_LABEL_ENTRIES 256
-
-#define MAX_LABEL ((1<<20) - 1)
-
+#include "flsw.h"
 #include <linux/ipv6.h>
 
 struct lpm_key_6 {

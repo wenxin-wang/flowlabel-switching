@@ -1,7 +1,7 @@
-all: flsw_lwt.o
+all: flsw_edge_lwt.o
 
-flsw_lwt.o: flsw_lwt.c
-	clang -O2 -Wall -target bpf -c flsw_lwt.c -o flsw_lwt.o
+flsw_edge_lwt.o: flsw_edge_lwt.c
+	clang -O2 -Wall -target bpf -c flsw_edge_lwt.c -o flsw_edge_lwt.o
 
 .PHONY: clean
 

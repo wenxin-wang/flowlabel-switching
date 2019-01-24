@@ -1,5 +1,4 @@
-#include "flsw_lwt.h"
-#include "iproute2_bpf_helpers.h"
+#include "flsw_edge_lwt.h"
 
 #include <stddef.h>
 #include <linux/if_ether.h>
@@ -13,7 +12,7 @@
 #define FLOWLABEL_OFF offsetof(struct ipv6hdr, flow_lbl)
 #define DADDR_OFF offsetof(struct ipv6hdr, daddr)
 
-struct bpf_elf_map flsw_lpm_label_map __section("maps") = {
+struct bpf_elf_map flsw_edge_lpm_map __section("maps") = {
     .id             = 1,
     .type           = BPF_MAP_TYPE_LPM_TRIE,
     .size_key       = sizeof(struct lpm_key_6),
@@ -23,7 +22,15 @@ struct bpf_elf_map flsw_lpm_label_map __section("maps") = {
 	.flags          = BPF_F_NO_PREALLOC,
 };
 
-struct bpf_elf_map flsw_lpm_label_maps __section("maps") = {
+struct bpf_elf_map flsw_edge_intf_map __section("maps") = {
+	.type           = BPF_MAP_TYPE_HASH,
+	.size_key       = sizeof(__u32),
+	.size_value     = sizeof(__u32),
+    .pinning        = PIN_GLOBAL_NS,
+	.max_elem       = MAX_INTFS,
+};
+
+struct bpf_elf_map flsw_edge_lpm_maps __section("maps") = {
 	.type           = BPF_MAP_TYPE_ARRAY_OF_MAPS,
 	.size_key       = sizeof(__u32),
     .size_value     = sizeof(__u32), // seems that all map_in_map's have this value size
@@ -46,7 +53,7 @@ static __always_inline int set_label(__u32 label, struct __sk_buff *skb)
     return BPF_OK;
 }
 
-static __always_inline int lpm_label(void *label_map, struct __sk_buff *skb)
+static __always_inline int lpm_label(struct bpf_elf_map *label_map, struct __sk_buff *skb)
 {
     struct lpm_key_6 key6;
     __u32 *plabel;
@@ -62,7 +69,7 @@ int do_label(struct __sk_buff *skb)
 {
     if (skb->protocol != __constant_htons(ETH_P_IPV6))
         return BPF_OK;
-    return lpm_label(&flsw_lpm_label_map, skb);
+    return lpm_label(&flsw_edge_lpm_map, skb);
 }
 
 __section("label-fwmk")
@@ -76,12 +83,15 @@ int do_labelfwmk(struct __sk_buff *skb)
 __section("mtlabel")
 int do_mtlabel(struct __sk_buff *skb)
 {
-    __u32 map_id = 0;
-    void *label_map;
+    __u32 *map_id;
+    struct bpf_elf_map *label_map;
     if (skb->protocol != __constant_htons(ETH_P_IPV6))
         return BPF_OK;
 
-    label_map = map_lookup_elem(&flsw_lpm_label_maps, &map_id);
+    map_id = map_lookup_elem(&flsw_edge_intf_map, &skb->ifindex);
+    if (!map_id)
+        return BPF_OK;
+    label_map = map_lookup_elem(&flsw_edge_lpm_maps, map_id);
     if (!label_map)
         return BPF_OK;
     return lpm_label(label_map, skb);

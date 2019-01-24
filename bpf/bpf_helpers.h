@@ -2,7 +2,7 @@
 #ifndef __IPROUTE2_BPF_HELPERS_H
 #define __IPROUTE2_BPF_HELPERS_H
 
-#include <linux/bpf.h>
+#include <bcc/compat/linux/bpf.h>
 #include <iproute2/bpf_elf.h>
 
 #ifndef __section
@@ -30,6 +30,10 @@
     (*NAME)(__VA_ARGS__) = (void *)BPF_FUNC_##NAME
 #endif
 
+#ifndef BIT
+#define BIT(nr)			(1UL << (nr))
+#endif
+
 static void *BPF_FUNC(
     skb_load_bytes, const struct __sk_buff *skb, __u32 offset,
     void *to, __u32 len);
@@ -37,5 +41,7 @@ static void *BPF_FUNC(
     skb_store_bytes, const struct __sk_buff *skb, __u32 offset,
     void *from, __u32 len, __u64 flags);
 static void *BPF_FUNC(map_lookup_elem, void *map, const void *key);
+static int BPF_FUNC(fib_lookup, struct bpf_fib_lookup *params, int plen, __u32 flags);
+static int BPF_FUNC(redirect, __u32 key, __u64 flags);
 
 #endif

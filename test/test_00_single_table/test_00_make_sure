@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -e
+trap 'trap_err $LINENO' ERR
+
+ip netns exec ns-h0 ping -qc 1 b::1 | expect_has '1 received'
+ip netns exec ns-h0 ping -qc 1 c::1 | expect_has '1 received'
+ip netns exec ns-h0 ping -qc 1 d::1 | expect_has '1 received'
+ip netns exec ns-h0 ping -qc 1 e::1 | expect_has '1 received'
+
+ip netns exec ns-h1 ping -qc 1 a::1 | expect_has '1 received'
+ip netns exec ns-h1 ping -qc 1 b::1 | expect_has '1 received'
+ip netns exec ns-h1 ping -qc 1 c::1 | expect_has '1 received'
+ip netns exec ns-h1 ping -qc 1 d::1 | expect_has '1 received'

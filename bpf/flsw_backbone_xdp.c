@@ -10,9 +10,8 @@
 // and store them back.
 // Kernel does the same trick with struct ipv6hdr's flow_lbl field
 
-#define IPV6_FLOWINFO_MASK		0x0FFFFFFF
-#define IPV6_FLOWLABEL_MASK		0x000FFFFF
-
+#define IPV6_FLOWLABEL_MASK	__constant_htonl(0x000FFFFFU)
+#define IPV6_FLOWINFO_MASK  __constant_htonl(0x0FFFFFFF)
 #define IPV6_MULTICAST_MASK __constant_htons(0xFFC0)
 #define IPV6_MULTICAST_PREF __constant_htons(0xFE80)
 #define IPV6_LINKLOCAL_MASK __constant_htons(0xFF00)
@@ -47,7 +46,7 @@ struct bpf_elf_map flsw_backbone_nexthop_maps __section("maps") = {
 
 static __always_inline void unset_flowlabel(struct ipv6hdr *ip6h)
 {
-    *(__u32 *)ip6h &= __constant_htonl(!IPV6_FLOWLABEL_MASK);
+    *(__be32 *)ip6h &= __constant_htonl(!IPV6_FLOWLABEL_MASK);
 }
 
 static __always_inline int do_redirect_v6(
@@ -58,7 +57,7 @@ static __always_inline int do_redirect_v6(
 	struct bpf_fib_lookup fib_params;
     struct in6_addr *src, *dst;
     struct nexthop_info *pnhop;
-    __u32 nlabel;
+    __be32 nlabel;
 	int ret;
 
     pnhop = map_lookup_elem(nexthop_map, &olabel);
@@ -71,10 +70,9 @@ static __always_inline int do_redirect_v6(
     __builtin_memset(&fib_params, 0, sizeof(fib_params));
     fib_params.family	= AF_INET6;
 
-    nlabel = (pnhop->label &= IPV6_FLOWLABEL_MASK);
-    *(__u32 *)ip6h = ((*(__u32 *)ip6h) & __constant_htonl(!IPV6_FLOWLABEL_MASK)) |
-        __constant_htonl(nlabel);
-    fib_params.flowinfo		= __constant_htonl(nlabel);
+    nlabel = __constant_htonl(pnhop->label) & IPV6_FLOWLABEL_MASK;
+    *(__be32 *)ip6h = (*(__be32 *)ip6h & ~IPV6_FLOWLABEL_MASK) | nlabel;
+    fib_params.flowinfo	= *(__be32 *)ip6h & IPV6_FLOWINFO_MASK;
     fib_params.l4_protocol	= ip6h->nexthdr;
     fib_params.sport	= 0;
     fib_params.dport	= 0;
@@ -134,7 +132,7 @@ static __always_inline int do_flsw_backbone(
     if (ip6h->hop_limit <= 1 || is_multicast_or_ll(ip6h))
         return XDP_PASS;
 
-    olabel = __constant_ntohl(*(__be32*)ip6h) & IPV6_FLOWLABEL_MASK;
+    olabel = __constant_ntohl(*(__be32*)ip6h & IPV6_FLOWLABEL_MASK);
 
     return do_redirect_v6(ctx, eth, ip6h, nexthop_map, olabel, flags);
 }

@@ -8,10 +8,11 @@
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <limits.h>
 
+extern const char BPF_BACKBONE_MAP_PATH[PATH_MAX];
 extern const char *PROG_NAME;
 extern const char *FORWARD_TYPE;
-extern const char *BACKBONE_NEXTHOP_MAP_PATH;
 
 static int is_unset;
 
@@ -44,9 +45,9 @@ int backbone_set(int argc, const char *argv[]) {
 		return -1;
 	}
 
-    fd = bpf_obj_get(BACKBONE_NEXTHOP_MAP_PATH);
-    if (fd < 0) {
-        fprintf(stderr, "Error open map %s: %s\n", BACKBONE_NEXTHOP_MAP_PATH, strerror(errno));
+    fd = bpf_obj_get(BPF_BACKBONE_MAP_PATH);
+        if (fd < 0) {
+            fprintf(stderr, "Error open map: %s %s\n", BPF_BACKBONE_MAP_PATH, strerror(errno));
         return fd;
     }
 

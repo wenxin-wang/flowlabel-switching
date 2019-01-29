@@ -5,11 +5,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
-#define BACKBONE_NEXTHOP_MAP_ENV "BACKBONE_NEXTHOP_MAP"
+#define BPF_BACKBONE_MAP_ENV "BACKBONE_MAP_PATH"
+#define BPF_BACKBONE_MAP_DEF_PATH "xdp/globals/flsw_backbone_nexthop_map"
 
-const char *BACKBONE_NEXTHOP_MAP_PATH = "/sys/fs/bpf/xdp/globals/flsw_backbone_nexthop_map";
+char BPF_BACKBONE_MAP_PATH[PATH_MAX];
 
+extern const char *BPF_MNT;
 extern const char *PROG_NAME;
 extern const char *FORWARD_TYPE;
 
@@ -35,7 +38,9 @@ static void backbone_usage(FILE *file)
 	for (size_t i = 0; i < sizeof(subcommands) / sizeof(subcommands[0]); ++i)
 		fprintf(file, "  %s: %s\n", subcommands[i].subcommand, subcommands[i].description);
     fprintf(file, "Available environment variables:\n");
-    fprintf(file, "  " BACKBONE_NEXTHOP_MAP_ENV ": bpf map for backbone nexthops, defaults to %s\n", BACKBONE_NEXTHOP_MAP_PATH);
+    fprintf(file, "  " BPF_BACKBONE_MAP_ENV
+    ": bpf map path (relative or absolute) for backbond nexthops, defaults to "
+    BPF_BACKBONE_MAP_DEF_PATH "\n");
 	fprintf(file, "You may pass `--help' to any of these subcommands to view usage.\n");
 }
 
@@ -53,9 +58,16 @@ int backbone_main(int argc, const char *argv[])
 
 	for (size_t i = 0; i < sizeof(subcommands) / sizeof(subcommands[0]); ++i) {
 		if (!strcmp(argv[0], subcommands[i].subcommand)) {
-            const char* nexthop_map = getenv(BACKBONE_NEXTHOP_MAP_ENV);
-            if (nexthop_map)
-                BACKBONE_NEXTHOP_MAP_PATH = nexthop_map;
+            const char* nexthop_map = getenv(BPF_BACKBONE_MAP_ENV);
+            if (!nexthop_map || !strlen(nexthop_map)) {
+                snprintf(BPF_BACKBONE_MAP_PATH, PATH_MAX, "%s/%s", BPF_MNT, BPF_BACKBONE_MAP_DEF_PATH);
+            }
+            else if (nexthop_map[0] == '/') {
+                strncpy(BPF_BACKBONE_MAP_PATH, nexthop_map, PATH_MAX);
+            }
+            else {
+                snprintf(BPF_BACKBONE_MAP_PATH, PATH_MAX, "%s/%s", BPF_MNT, nexthop_map);
+            }
 			return subcommands[i].function(argc, argv);
         }
 	}

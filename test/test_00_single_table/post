@@ -12,3 +12,11 @@ ip l del h1r1
 ip l del r0r1
 ip l del r0r2
 ip l del r1r2
+
+rm /tmp/flsw_test*.log
+for m in $__BPFFS_PATH__/*; do
+    umount $m
+done
+rm -rf $__BPFFS_PATH__
+
+exit 0

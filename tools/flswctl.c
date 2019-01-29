@@ -1,8 +1,12 @@
-#include <stdio.h>
-#include <string.h>
-
 #include "forwardtypes.h"
 
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+#define BPF_MNT_ENV "TC_BPF_MNT"
+
+const char *BPF_MNT = "/sys/fs/bpf";
 const char *PROG_NAME;
 const char *FORWARD_TYPE;
 
@@ -25,11 +29,15 @@ static void main_usage(FILE *file)
 	fprintf(file, "Available forward types:\n");
 	for (size_t i = 0; i < sizeof(forwardtypes) / sizeof(forwardtypes[0]); ++i)
 		fprintf(file, "  %s: %s\n", forwardtypes[i].subcommand, forwardtypes[i].description);
-	fprintf(file, "You may pass `--help' to any of these forwardtypes to view usage.\n");
+    fprintf(file, "Available environment variables:\n");
+    fprintf(file, "  " BPF_MNT_ENV ": bpf filesystem mount point, defaults to %s\n", BPF_MNT);
+    fprintf(file, "You may pass `--help' to any of these forwardtypes to view usage.\n");
 }
 
 int main(int argc, const char *argv[])
 {
+    const char* bpffs_mnt;
+
 	PROG_NAME = argv[0];
 	if (argc == 2 && (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help") || !strcmp(argv[1], "help"))) {
 		main_usage(stdout);
@@ -40,6 +48,10 @@ int main(int argc, const char *argv[])
 		main_usage(stderr);
 		return 1;
 	}
+
+    bpffs_mnt = getenv(BPF_MNT_ENV);
+    if (bpffs_mnt)
+        BPF_MNT = bpffs_mnt;
 
 	for (size_t i = 0; i < sizeof(forwardtypes) / sizeof(forwardtypes[0]); ++i) {
 		if (!strcmp(argv[1], forwardtypes[i].subcommand)) {

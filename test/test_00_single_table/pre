@@ -1,14 +1,11 @@
 #!/bin/bash
 
+set -e
+
 #                 R2
 #    a::   c:: /      \ d::  e::
 #   H0   -   R0  ----  R1   -   H1
 #                 b::
-
-__DIR__=$(cd ${BASH_SOURCE[0]%/*} && pwd)
-__SRC__=$(cd $__DIR__/../.. && pwd)
-__TOOLS__=$__SRC__/tools
-__BPF__=$__SRC__/bpf
 
 ip netns add ns-h0
 ip netns add ns-h1
@@ -78,12 +75,4 @@ ip netns exec ns-r2 ip r add a::/64 via c::1
 ip netns exec ns-r2 ip r add b::/64 via c::1
 ip netns exec ns-r2 ip r add e::/64 via d::1
 
-ip netns exec ns-h0 ping -qc 1 b::1 | grep transmitted
-ip netns exec ns-h0 ping -qc 1 c::1 | grep transmitted
-ip netns exec ns-h0 ping -qc 1 d::1 | grep transmitted
-ip netns exec ns-h0 ping -qc 1 e::1 | grep transmitted
-
-ip netns exec ns-h1 ping -qc 1 a::1 | grep transmitted
-ip netns exec ns-h1 ping -qc 1 b::1 | grep transmitted
-ip netns exec ns-h1 ping -qc 1 c::1 | grep transmitted
-ip netns exec ns-h1 ping -qc 1 d::1 | grep transmitted
+sleep 3

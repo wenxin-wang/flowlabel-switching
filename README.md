@@ -18,13 +18,23 @@ lwt xmit bpf cannot have arguments
 3. if match, change flowlabel
 
 
-# Test Setup
-## Edge
+# Examples
 
-```bash
-sudo ip -6 r add fdde::/64 dev tun0 encap bpf xmit obj bpf/flsw_edge_lwt.o section label verbose
-sudo ip l set dev tun0 xdp obj bpf/flsw_backbone_xdp.o section fwd verbose
+See [test/]().
 
-sudo ip -6 r del fdde::/64
-sudo ip l set dev tun0 xdp off
-```
+# About `ip netns exec`
+
+The default bpf filesystem, used for pinning bpf programs and maps, is mounted
+on `/sys/fs/bpf/` by `iproute2` programs. However, `ip netns exec` happens to
+unmount `/sys` before `exec`, so the called program never sees that bpf
+filesystem.
+
+And it seems that bpf filesystem cannot be mounted by any command invoked with
+`ip netns exec`. I don't know the reason behind.
+
+So before calling `ip netns exec`, mount a bpf file system somewhere other than
+`/sys`, e.g. `/run/flsw/bpffs/`, and `ip netns exec` will see that filesystem.
+
+And by setting `TC_BPF_MNT` environment variable to subdirectories of the
+previously mounted bpf filesystem, we can have different bpf objects with the
+same name for different netns.

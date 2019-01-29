@@ -5,11 +5,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
-#define EDGE_LABEL_MAP_ENV "EDGE_LABEL_MAP"
+#define BPF_EDGE_MAP_ENV "EDGE_MAP_PATH"
+#define BPF_EDGE_MAP_DEF_PATH "ip/globals/flsw_edge_lpm_map"
 
-const char *EDGE_LABEL_MAP_PATH = "/sys/fs/bpf/ip/globals/flsw_edge_lpm_map";
+char BPF_EDGE_MAP_PATH[PATH_MAX];
 
+extern const char *BPF_MNT;
 extern const char *PROG_NAME;
 extern const char *FORWARD_TYPE;
 
@@ -35,8 +38,10 @@ static void edge_usage(FILE *file)
 	for (size_t i = 0; i < sizeof(subcommands) / sizeof(subcommands[0]); ++i)
 		fprintf(file, "  %s: %s\n", subcommands[i].subcommand, subcommands[i].description);
     fprintf(file, "Available environment variables:\n");
-    fprintf(file, "  " EDGE_LABEL_MAP_ENV ": bpf map for edge labels, defaults to %s\n", EDGE_LABEL_MAP_PATH);
-	fprintf(file, "You may pass `--help' to any of these subcommands to view usage.\n");
+    fprintf(file, "  " BPF_EDGE_MAP_ENV
+        ": bpf map path (relative or absolute) for edge labels, defaults to "
+        BPF_EDGE_MAP_DEF_PATH "\n");
+    fprintf(file, "You may pass `--help' to any of these subcommands to view usage.\n");
 }
 
 int edge_main(int argc, const char *argv[])
@@ -53,9 +58,16 @@ int edge_main(int argc, const char *argv[])
 
 	for (size_t i = 0; i < sizeof(subcommands) / sizeof(subcommands[0]); ++i) {
 		if (!strcmp(argv[0], subcommands[i].subcommand)) {
-            const char* label_map = getenv(EDGE_LABEL_MAP_ENV);
-            if (label_map)
-                EDGE_LABEL_MAP_PATH = label_map;
+            const char* label_map = getenv(BPF_EDGE_MAP_ENV);
+            if (!label_map || !strlen(label_map)) {
+                snprintf(BPF_EDGE_MAP_PATH, PATH_MAX, "%s/%s", BPF_MNT, BPF_EDGE_MAP_DEF_PATH);
+            }
+            else if (label_map[0] == '/') {
+                strncpy(BPF_EDGE_MAP_PATH, label_map, PATH_MAX);
+            }
+            else {
+                snprintf(BPF_EDGE_MAP_PATH, PATH_MAX, "%s/%s", BPF_MNT, label_map);
+            }
 			return subcommands[i].function(argc, argv);
         }
 	}

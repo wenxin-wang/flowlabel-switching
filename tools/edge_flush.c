@@ -8,10 +8,11 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
+#include <limits.h>
 
+extern const char BPF_EDGE_MAP_PATH[PATH_MAX];
 extern const char *PROG_NAME;
 extern const char *FORWARD_TYPE;
-extern const char *EDGE_LABEL_MAP_PATH;
 
 static void edge_flush_usage(FILE *file, const char* cmd) {
 	fprintf(file,
@@ -33,9 +34,9 @@ int edge_flush(int argc, const char *argv[]) {
 		return 1;
 	}
 
-    fd = bpf_obj_get(EDGE_LABEL_MAP_PATH);
+    fd = bpf_obj_get(BPF_EDGE_MAP_PATH);
     if (fd < 0) {
-        fprintf(stderr, "Error open map: %s %s\n", EDGE_LABEL_MAP_PATH, strerror(errno));
+        fprintf(stderr, "Error open map: %s %s\n", BPF_EDGE_MAP_PATH, strerror(errno));
         return fd;
     }
 

@@ -18,7 +18,7 @@
 #define IPV6_LINKLOCAL_PREF __constant_htons(0xFF00)
 
 struct bpf_elf_map flsw_backbone_nexthop_map __section("maps") = {
-    .id             = 1,
+    // .id             = 1,
     .type           = BPF_MAP_TYPE_HASH,
     .size_key       = sizeof(__u32),
     .size_value     = sizeof(struct nexthop_info),
@@ -27,6 +27,7 @@ struct bpf_elf_map flsw_backbone_nexthop_map __section("maps") = {
 	.flags          = BPF_F_NO_PREALLOC,
 };
 
+/*
 struct bpf_elf_map flsw_backbone_intf_map __section("maps") = {
 	.type           = BPF_MAP_TYPE_HASH,
 	.size_key       = sizeof(__u32),
@@ -43,6 +44,7 @@ struct bpf_elf_map flsw_backbone_nexthop_maps __section("maps") = {
     .pinning        = PIN_GLOBAL_NS,
 	.max_elem       = MAX_LABEL_MAPS,
 };
+*/
 
 static __always_inline void unset_flowlabel(struct ipv6hdr *ip6h)
 {
@@ -149,6 +151,7 @@ int do_fwd_rtdirect(struct xdp_md *ctx)
     return do_flsw_backbone(ctx, &flsw_backbone_nexthop_map, BPF_FIB_LOOKUP_DIRECT);
 }
 
+/*
 __section("mtfwd")
 int do_mtfwd(struct xdp_md *ctx)
 {
@@ -163,5 +166,6 @@ int do_mtfwd(struct xdp_md *ctx)
 
     return do_flsw_backbone(ctx, nexthop_map, 0);
 }
+*/
 
 char __license[] __section("license") = "GPL";

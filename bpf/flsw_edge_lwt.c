@@ -13,7 +13,7 @@
 #define DADDR_OFF offsetof(struct ipv6hdr, daddr)
 
 struct bpf_elf_map flsw_edge_lpm_map __section("maps") = {
-    .id             = 1,
+    // .id             = 1,
     .type           = BPF_MAP_TYPE_LPM_TRIE,
     .size_key       = sizeof(struct lpm_key_6),
     .size_value     = sizeof(__u32),
@@ -22,6 +22,7 @@ struct bpf_elf_map flsw_edge_lpm_map __section("maps") = {
 	.flags          = BPF_F_NO_PREALLOC,
 };
 
+/*
 struct bpf_elf_map flsw_edge_intf_map __section("maps") = {
 	.type           = BPF_MAP_TYPE_HASH,
 	.size_key       = sizeof(__u32),
@@ -38,6 +39,7 @@ struct bpf_elf_map flsw_edge_lpm_maps __section("maps") = {
     .pinning        = PIN_GLOBAL_NS,
 	.max_elem       = MAX_LABEL_MAPS,
 };
+*/
 
 static __always_inline int set_label(__u32 label, struct __sk_buff *skb)
 {
@@ -80,6 +82,7 @@ int do_labelfwmk(struct __sk_buff *skb)
     return set_label(skb->mark, skb);
 }
 
+/*
 __section("mtlabel")
 int do_mtlabel(struct __sk_buff *skb)
 {
@@ -96,6 +99,7 @@ int do_mtlabel(struct __sk_buff *skb)
         return BPF_OK;
     return lpm_label(label_map, skb);
 }
+*/
 
 __section("unlabel")
 int do_unlabel(struct __sk_buff *skb)

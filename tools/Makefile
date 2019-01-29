@@ -13,7 +13,13 @@ all: flswctl
 flswctl: flswctl.o edge_main.o edge_set.o edge_show.o edge_flush.o \
 backbone_main.o backbone_set.o backbone_show.o backbone_flush.o addr_utils.o
 
-.PHONY: clean
+install: flswctl
+	$(INSTALL) -m 755 flswctl $(DESTDIR)$(PREFIX)/bin/flswctl
+
+uninstall:
+	$(RM) $(DESTDIR)$(PREFIX)/bin/flswctl
+
+.PHONY: clean install uninstall
 
 clean:
 	rm -f *.o

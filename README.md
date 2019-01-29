@@ -1,22 +1,45 @@
 # Edge
 
-label: lwt xmit
-switching: like backbone
-unlabel: lwt xmit
+1. labeling: lwt xmit
+2. switching: like backbone
+3. unlabeling: lwt xmit
 
-# Backbone
-
-switching: xdp/tc bpf
-fallback: unlabel + routing: switching fallback to this when seeing unknown label (sets label to 0 before routing) or label 0
-
-# label
+## Labeling
 
 lwt xmit bpf cannot have arguments
 
 1. lpm match for a label value
-2. if not match, do nothing
+2. if not match, unset flowlabel
 3. if match, change flowlabel
+4. continue routing
 
+## Unlabeling
+
+Just set flowlabel to 0
+
+# Backbone
+
+xdp/tc bpf
+
+## Fallback
+
+unlabel + routing: switching fallback to this when seeing 0-label or unknown
+label (sets label to 0 before routing)
+
+# Build
+
+## Prerequisites
+
+1. linux-kernel >= 4.18 (for `fib_lookup`): See [BPF Features by Linux Kernel
+   Version](https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md)
+2. bcc: for libbpf
+
+## Build & Install
+
+```bash
+cd flowlabel-switching/
+make
+```
 
 # Examples
 

@@ -19,7 +19,7 @@ Just set flowlabel to 0
 
 # Backbone
 
-xdp/tc bpf
+xdp bpf
 
 ## Fallback
 
@@ -55,9 +55,12 @@ filesystem.
 And it seems that bpf filesystem cannot be mounted by any command invoked with
 `ip netns exec`. I don't know the reason behind.
 
-So before calling `ip netns exec`, mount a bpf file system somewhere other than
+So before calling `ip netns exec`, mount a bpf filesystem somewhere other than
 `/sys`, e.g. `/run/flsw/bpffs/`, and `ip netns exec` will see that filesystem.
 
-And by setting `TC_BPF_MNT` environment variable to subdirectories of the
-previously mounted bpf filesystem, we can have different bpf objects with the
-same name for different netns.
+And by setting `TC_BPF_MNT` environment variable to ~~subdirectories of the
+previously mounted bpf filesystem.~~ (iproute2 tries to mount bpf filesystem
+whenever `TC_BPF_MNT` is not a bpf mount point, whether it's a subdirectory of a
+bpf fs or not, probably with good reason) different mount points of bpf
+filesystems, we can have different bpf objects with the same name for different
+netns.

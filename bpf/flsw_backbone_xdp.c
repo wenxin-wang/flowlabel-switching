@@ -107,7 +107,7 @@ static __always_inline int do_redirect_v6(struct xdp_md *ctx,
 
 static __always_inline int is_multicast_or_ll(struct ipv6hdr *ip6h)
 {
-	__be16 a = ip6h->daddr.in6_u.u6_addr16[0];
+	__be16 a = ip6h->daddr.s6_addr16[0];
 	return (a & IPV6_MULTICAST_MASK) == IPV6_MULTICAST_PREF ||
 	       (a & IPV6_LINKLOCAL_MASK) == IPV6_LINKLOCAL_PREF;
 }

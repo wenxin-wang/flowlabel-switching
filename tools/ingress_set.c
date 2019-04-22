@@ -1,6 +1,6 @@
 #include "subcommands.h"
 #include "addr_utils.h"
-#include "../bpf/flsw_edge_lwt.h"
+#include "../bpf/flsw_ingress_lwt.h"
 
 #include <bcc/libbpf.h>
 
@@ -10,34 +10,35 @@
 #include <stdlib.h>
 #include <limits.h>
 
-extern const char BPF_EDGE_MAP_PATH[PATH_MAX];
+extern const char BPF_INGRESS_MAP_PATH[PATH_MAX];
 extern const char *PROG_NAME;
 extern const char *FORWARD_TYPE;
 
 static int is_unset;
 
-static void edge_set_usage(FILE *file, const char *cmd)
+static void ingress_set_usage(FILE *file, const char *cmd)
 {
 	fprintf(file,
-		"Usage: %s %s %s <prefix> [<label>]\n"
+		"Usage: %s %s %s <prefix> [<ipv6 nexthop> <label>]\n"
 		"Note:\nWhen unsetting label for a <prefix>, specify only the <prefix>.\n",
 		PROG_NAME, FORWARD_TYPE, cmd);
 }
 
-int edge_set(int argc, const char *argv[])
+int ingress_set(int argc, const char *argv[])
 {
 	struct lpm_key_6 prefix;
-	int fd, label, ret;
+	struct nexthop_info nhinfo;
+	int fd, ret;
 
 	if (argc == 2 &&
 	    (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help") ||
 	     !strcmp(argv[1], "help"))) {
-		edge_set_usage(stdout, argv[0]);
+		ingress_set_usage(stdout, argv[0]);
 		return 0;
 	}
 	is_unset = !strcmp(argv[0], CMD_UNSET);
-	if (is_unset ? argc < 2 : argc < 3) {
-		edge_set_usage(stderr, argv[0]);
+	if (is_unset ? argc < 2 : argc < 4) {
+		ingress_set_usage(stderr, argv[0]);
 		return -1;
 	}
 
@@ -47,9 +48,9 @@ int edge_set(int argc, const char *argv[])
 		return ret;
 	}
 
-	fd = bpf_obj_get(BPF_EDGE_MAP_PATH);
+	fd = bpf_obj_get(BPF_INGRESS_MAP_PATH);
 	if (fd < 0) {
-		fprintf(stderr, "Error open map %s: %s\n", BPF_EDGE_MAP_PATH,
+		fprintf(stderr, "Error open map %s: %s\n", BPF_INGRESS_MAP_PATH,
 			strerror(errno));
 		return fd;
 	}
@@ -63,14 +64,18 @@ int edge_set(int argc, const char *argv[])
 		return ret;
 	}
 
-	label = atoi(argv[2]);
-	if (label <= 0 || label > MAX_LABEL) {
+	ret = parse_address6(argv[2], &nhinfo.nexthop);
+	if (ret)
+		return ret;
+
+	nhinfo.label = atoi(argv[3]);
+	if (nhinfo.label <= 0 || nhinfo.label > MAX_LABEL) {
 		errno = EINVAL;
-		fprintf(stderr, "Invalid label %d\n", label);
+		fprintf(stderr, "Invalid label %d\n", nhinfo.label);
 		return -1;
 	}
 
-	ret = bpf_update_elem(fd, &prefix, &label, BPF_ANY);
+	ret = bpf_update_elem(fd, &prefix, &nhinfo, BPF_ANY);
 	if (ret < 0) {
 		printf("Error set %s %s: %s\n", argv[1], argv[2],
 		       strerror(errno));

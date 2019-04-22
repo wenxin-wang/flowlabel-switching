@@ -1,0 +1,35 @@
+#!/bin/bash
+
+ip netns del ns-h0
+ip netns del ns-h1
+ip netns del ns-r0
+ip netns del ns-r1
+ip netns del ns-r2
+ip netns del ns-r3
+ip netns del ns-r4
+ip netns del ns-s
+
+ip l del h0x
+ip l del h1x
+ip l del r0x
+ip l del r0r1
+ip l del r0r3
+ip l del r1r2
+ip l del r3r4
+ip l del r2b
+ip l del r4b
+ip l del sb
+
+ip l set br-x down
+ip l set br-b down
+
+brctl delbr br-x
+brctl delbr br-b
+
+rm /tmp/flsw_test*.log
+for m in $__BPFFS_PATH__/*; do
+    umount $m
+done
+rm -rf $__BPFFS_PATH__
+
+exit 0

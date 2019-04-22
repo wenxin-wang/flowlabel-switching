@@ -3,9 +3,4 @@
 
 #include "flsw.h"
 
-struct nexthop_info {
-	struct in6_addr nexthop;
-	__u32 label;
-};
-
 #endif

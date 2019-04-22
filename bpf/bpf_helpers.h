@@ -29,13 +29,26 @@
 #define BIT(nr) (1UL << (nr))
 #endif
 
-static void *BPF_FUNC(skb_load_bytes, const struct __sk_buff *skb, __u32 offset,
+#ifndef unlikely
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#endif
+
+static int BPF_FUNC(skb_load_bytes, const struct __sk_buff *skb, __u32 offset,
 		      void *to, __u32 len);
-static void *BPF_FUNC(skb_store_bytes, const struct __sk_buff *skb,
-		      __u32 offset, void *from, __u32 len, __u64 flags);
+static int BPF_FUNC(skb_store_bytes, struct __sk_buff *skb, __u32 offset,
+		      void *from, __u32 len, __u64 flags);
 static void *BPF_FUNC(map_lookup_elem, void *map, const void *key);
 static int BPF_FUNC(fib_lookup, struct xdp_md *ctx,
 		    struct bpf_fib_lookup *params, int plen, __u32 flags);
 static int BPF_FUNC(redirect, __u32 key, __u64 flags);
+static int BPF_FUNC(skb_change_head, const struct __sk_buff *skb,
+		    __u32 head_room, __u64 flags);
+static int BPF_FUNC(trace_printk, const char *fmt, int fmt_size, ...);
+
+#define printk(fmt, ...)                                                       \
+	({                                                                     \
+		char ____fmt[] = fmt;                                          \
+		trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__);         \
+	})
 
 #endif

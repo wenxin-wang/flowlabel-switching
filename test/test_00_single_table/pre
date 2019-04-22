@@ -22,6 +22,12 @@ ip l add r0r1 type veth peer name r1r0
 ip l add r0r2 type veth peer name r2r0
 ip l add r1r2 type veth peer name r2r1
 
+for i in r0r1 r1r0 r0r2 r2r0 r1r2 r2r1; do
+    ethtool -K $i gro off
+    ethtool -K $i tso off
+    ethtool -K $i gso off
+done
+
 ip l set h0r0 netns ns-h0
 ip l set h1r1 netns ns-h1
 ip l set r0h0 netns ns-r0

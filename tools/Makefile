@@ -10,7 +10,7 @@ LDLIBS += $(LIBBCC_LDLIBS)
 
 all: flswctl
 
-flswctl: flswctl.o edge_main.o edge_set.o edge_show.o edge_flush.o \
+flswctl: flswctl.o ingress_main.o ingress_set.o ingress_show.o ingress_flush.o \
 backbone_main.o backbone_set.o backbone_show.o backbone_flush.o addr_utils.o
 
 install: flswctl

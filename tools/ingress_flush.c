@@ -1,5 +1,5 @@
 #include "subcommands.h"
-#include "../bpf/flsw_edge_lwt.h"
+#include "../bpf/flsw_ingress_lwt.h"
 
 #include <bcc/libbpf.h>
 
@@ -10,16 +10,16 @@
 #include <arpa/inet.h>
 #include <limits.h>
 
-extern const char BPF_EDGE_MAP_PATH[PATH_MAX];
+extern const char BPF_INGRESS_MAP_PATH[PATH_MAX];
 extern const char *PROG_NAME;
 extern const char *FORWARD_TYPE;
 
-static void edge_flush_usage(FILE *file, const char *cmd)
+static void ingress_flush_usage(FILE *file, const char *cmd)
 {
 	fprintf(file, "Usage: %s %s %s\n", PROG_NAME, FORWARD_TYPE, cmd);
 }
 
-int edge_flush(int argc, const char *argv[])
+int ingress_flush(int argc, const char *argv[])
 {
 	struct lpm_key_6 cur, next, *pcur, *pnext;
 	int fd, ret;
@@ -27,17 +27,17 @@ int edge_flush(int argc, const char *argv[])
 	if (argc == 2 &&
 	    (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help") ||
 	     !strcmp(argv[1], "help"))) {
-		edge_flush_usage(stdout, argv[0]);
+		ingress_flush_usage(stdout, argv[0]);
 		return 0;
 	}
 	if (argc > 1) {
-		edge_flush_usage(stderr, argv[0]);
+		ingress_flush_usage(stderr, argv[0]);
 		return 1;
 	}
 
-	fd = bpf_obj_get(BPF_EDGE_MAP_PATH);
+	fd = bpf_obj_get(BPF_INGRESS_MAP_PATH);
 	if (fd < 0) {
-		fprintf(stderr, "Error open map: %s %s\n", BPF_EDGE_MAP_PATH,
+		fprintf(stderr, "Error open map: %s %s\n", BPF_INGRESS_MAP_PATH,
 			strerror(errno));
 		return fd;
 	}

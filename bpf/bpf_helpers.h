@@ -44,6 +44,10 @@ static int BPF_FUNC(redirect, __u32 key, __u64 flags);
 static int BPF_FUNC(skb_change_head, const struct __sk_buff *skb,
 		    __u32 head_room, __u64 flags);
 static int BPF_FUNC(trace_printk, const char *fmt, int fmt_size, ...);
+static int BPF_FUNC(lwt_push_encap, struct __sk_buff * skb, __u32 type,
+		    void * hdr, __u32 len);
+static int BPF_FUNC(xdp_adjust_head, struct xdp_md * ctx, int offset);
+
 
 #define printk(fmt, ...)                                                       \
 	({                                                                     \

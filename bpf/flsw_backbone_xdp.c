@@ -1,21 +1,6 @@
 #include "flsw_backbone_xdp.h"
 
-#include <arpa/inet.h>
 #include <linux/if_ether.h>
-#include <linux/ipv6.h>
-
-// Flowlabel is 12-31 bit of an ipv6 header (20 bits),
-// but lwt xmit bpf can only load and store bytes.
-// So load 3 bytes, change the flowlabel part,
-// and store them back.
-// Kernel does the same trick with struct ipv6hdr's flow_lbl field
-
-#define IPV6_FLOWLABEL_MASK __constant_htonl(0x000FFFFFU)
-#define IPV6_FLOWINFO_MASK __constant_htonl(0x0FFFFFFF)
-#define IPV6_MULTICAST_MASK __constant_htons(0xFFC0)
-#define IPV6_MULTICAST_PREF __constant_htons(0xFE80)
-#define IPV6_LINKLOCAL_MASK __constant_htons(0xFF00)
-#define IPV6_LINKLOCAL_PREF __constant_htons(0xFF00)
 
 struct bpf_elf_map flsw_backbone_nexthop_map __section("maps") = {
 	// .id             = 1,
@@ -27,53 +12,45 @@ struct bpf_elf_map flsw_backbone_nexthop_map __section("maps") = {
 	.flags = BPF_F_NO_PREALLOC,
 };
 
-/*
-  struct bpf_elf_map flsw_backbone_intf_map __section("maps") = {
-  .type           = BPF_MAP_TYPE_HASH,
-  .size_key       = sizeof(__u32),
-  .size_value     = sizeof(__u32),
-  .pinning        = PIN_GLOBAL_NS,
-  .max_elem       = MAX_INTFS,
-  };
-
-  struct bpf_elf_map flsw_backbone_nexthop_maps __section("maps") = {
-  .type           = BPF_MAP_TYPE_ARRAY_OF_MAPS,
-  .size_key       = sizeof(__u32),
-  .size_value     = sizeof(__u32), // seems that all map_in_map's have this
-  value size .inner_id       = 1, .pinning        = PIN_GLOBAL_NS, .max_elem =
-  MAX_LABEL_MAPS,
-  };
-*/
-
-static __always_inline void unset_flowlabel(struct ipv6hdr *ip6h)
+static __always_inline int pop_to_native_stack(struct xdp_md *ctx,
+					       struct ethhdr *eth,
+					       struct ipv6hdr *ip6h,
+					       enum flsw_mode mode)
 {
-	*(__be32 *)ip6h &= __constant_htonl(!IPV6_FLOWLABEL_MASK);
+	struct ethhdr oeth;
+	void *data = (void *)(long)ctx->data;
+	void *data_end = (void *)(long)ctx->data_end;
+	if (mode == FLSW_MODE_INLINE) {
+		ip6h_clear_flowlabel(ip6h);
+		return XDP_PASS;
+	}
+        if (data + FLSW_ENCAP_OVERHEAD + sizeof(oeth) > data_end)
+                return XDP_PASS;
+	oeth = *eth;
+	xdp_adjust_head(ctx, FLSW_ENCAP_OVERHEAD);
+	data = (void *)(long)ctx->data;
+	data_end = (void *)(long)ctx->data_end;
+	if (data + sizeof(oeth) > data_end)
+		return XDP_PASS;
+	__builtin_memcpy(data, &oeth, sizeof(oeth));
+	return XDP_PASS;
 }
 
 static __always_inline int do_redirect_v6(struct xdp_md *ctx,
 					  struct ethhdr *eth,
 					  struct ipv6hdr *ip6h,
-					  struct bpf_elf_map *nexthop_map,
-					  __u32 olabel, __u64 flags)
+					  struct nexthop_info *pnhop,
+					  enum flsw_mode mode, __u64 rt_flags)
 {
 	struct bpf_fib_lookup fib_params;
 	struct in6_addr *src, *dst;
-	struct nexthop_info *pnhop;
-	__be32 nlabel;
 	int ret;
-
-	pnhop = map_lookup_elem(nexthop_map, &olabel);
-	if (!pnhop) {
-		// All unknown label must be cleared
-		unset_flowlabel(ip6h);
-		return XDP_PASS;
-	}
 
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
 	fib_params.family = AF_INET6;
 
-	nlabel = __constant_htonl(pnhop->label) & IPV6_FLOWLABEL_MASK;
-	*(__be32 *)ip6h = (*(__be32 *)ip6h & ~IPV6_FLOWLABEL_MASK) | nlabel;
+	ip6h_set_flowlabel(ip6h, pnhop->label);
+
 	fib_params.flowinfo = *(__be32 *)ip6h & IPV6_FLOWINFO_MASK;
 	fib_params.l4_protocol = ip6h->nexthdr;
 	fib_params.sport = 0;
@@ -86,7 +63,7 @@ static __always_inline int do_redirect_v6(struct xdp_md *ctx,
 
 	fib_params.ifindex = ctx->ingress_ifindex;
 
-	ret = fib_lookup(ctx, &fib_params, sizeof(fib_params), flags);
+	ret = fib_lookup(ctx, &fib_params, sizeof(fib_params), rt_flags);
 
 	/* verify egress index has xdp support
    * TO-DO bpf_map_lookup_elem(&tx_port, &key) fails with
@@ -102,7 +79,7 @@ static __always_inline int do_redirect_v6(struct xdp_md *ctx,
 		return redirect(fib_params.ifindex, 0);
 	}
 
-	return XDP_PASS;
+	return pop_to_native_stack(ctx, eth, ip6h, mode);
 }
 
 static __always_inline int is_multicast_or_ll(struct ipv6hdr *ip6h)
@@ -114,10 +91,12 @@ static __always_inline int is_multicast_or_ll(struct ipv6hdr *ip6h)
 
 static __always_inline int do_flsw_backbone(struct xdp_md *ctx,
 					    struct bpf_elf_map *nexthop_map,
-					    __u64 flags)
+					    enum flsw_mode mode,
+					    __u64 rt_flags)
 {
 	void *data_end = (void *)(long)ctx->data_end;
 	void *data = (void *)(long)ctx->data;
+	struct nexthop_info *pnhop;
 	struct ethhdr *eth = data;
 	struct ipv6hdr *ip6h;
 	__u32 olabel;
@@ -132,40 +111,55 @@ static __always_inline int do_flsw_backbone(struct xdp_md *ctx,
 	if ((void *)(ip6h + 1) > data_end)
 		return XDP_PASS;
 
-	if (ip6h->hop_limit <= 1 || is_multicast_or_ll(ip6h))
+	// normal ipv6 packets are pass through
+	if (mode != FLSW_MODE_INLINE && ip6h->nexthdr != IPPROTO_ROUTING)
 		return XDP_PASS;
 
+	if (ip6h->hop_limit <= 1 || is_multicast_or_ll(ip6h)) {
+		return pop_to_native_stack(ctx, eth, ip6h, mode);
+	}
+
 	olabel = __constant_ntohl(*(__be32 *)ip6h & IPV6_FLOWLABEL_MASK);
+	pnhop = map_lookup_elem(nexthop_map, &olabel);
+	if (!pnhop || !pnhop->label) {
+		// unknown label or empty label
+		return pop_to_native_stack(ctx, eth, ip6h, mode);
+	}
 
-	return do_redirect_v6(ctx, eth, ip6h, nexthop_map, olabel, flags);
+	return do_redirect_v6(ctx, eth, ip6h, pnhop, mode, rt_flags);
 }
 
-__section("fwd") int do_fwd(struct xdp_md *ctx)
+__section("inline") int do_inline(struct xdp_md *ctx)
 {
-	return do_flsw_backbone(ctx, &flsw_backbone_nexthop_map, 0);
+  return do_flsw_backbone(ctx, &flsw_backbone_nexthop_map, FLSW_MODE_INLINE, 0);
 }
 
-__section("fwd-rtdirect") int do_fwd_rtdirect(struct xdp_md *ctx)
+__section("encap") int do_encap(struct xdp_md *ctx)
+{
+  return do_flsw_backbone(ctx, &flsw_backbone_nexthop_map, FLSW_MODE_ENCAP, 0);
+}
+
+__section("segment") int do_segment(struct xdp_md *ctx)
+{
+  return do_flsw_backbone(ctx, &flsw_backbone_nexthop_map, FLSW_MODE_SEGMENT, 0);
+}
+
+__section("inline-rtdirect") int do_inline_rtdirect(struct xdp_md *ctx)
 {
 	return do_flsw_backbone(ctx, &flsw_backbone_nexthop_map,
-				BPF_FIB_LOOKUP_DIRECT);
+				FLSW_MODE_INLINE, BPF_FIB_LOOKUP_DIRECT);
 }
 
-/*
-  __section("mtfwd")
-  int do_mtfwd(struct xdp_md *ctx)
-  {
-  __u32 *map_id;
-  struct bpf_elf_map *nexthop_map;
-  map_id = map_lookup_elem(&flsw_backbone_intf_map, &ctx->ingress_ifindex);
-  if (!map_id)
-  return XDP_PASS;
-  nexthop_map = map_lookup_elem(&flsw_backbone_nexthop_maps, map_id);
-  if (!nexthop_map)
-  return XDP_PASS;
+__section("encap-rtdirect") int do_encap_rtdirect(struct xdp_md *ctx)
+{
+	return do_flsw_backbone(ctx, &flsw_backbone_nexthop_map,
+				FLSW_MODE_ENCAP, BPF_FIB_LOOKUP_DIRECT);
+}
 
-  return do_flsw_backbone(ctx, nexthop_map, 0);
-  }
-*/
+__section("segment-rtdirect") int do_segment_rtdirect(struct xdp_md *ctx)
+{
+	return do_flsw_backbone(ctx, &flsw_backbone_nexthop_map,
+				FLSW_MODE_SEGMENT, BPF_FIB_LOOKUP_DIRECT);
+}
 
 char __license[] __section("license") = "GPL";

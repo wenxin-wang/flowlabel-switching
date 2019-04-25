@@ -30,8 +30,7 @@ label (sets label to 0 before routing)
 
 ## Prerequisites
 
-1. linux-kernel >= 4.18 (for `fib_lookup`): See [BPF Features by Linux Kernel
-   Version](https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md)
+1. linux-kernel >= 5.1rc6 (for `lwt_push_encap`): See [the commit](https://github.com/torvalds/linux/commit/52f278774e796a553be0c869dcaaee6f259ca795)
 2. bcc: for libbpf
 
 ## Build & Install

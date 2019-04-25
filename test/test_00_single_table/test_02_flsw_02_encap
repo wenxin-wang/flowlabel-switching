@@ -1,0 +1,58 @@
+#!/bin/bash
+
+set -e
+trap 'trap_err $LINENO' ERR
+
+for n in r0 r1 r2; do
+    mkdir -p $__BPFFS_PATH__/ns-$n
+    mount flswbpf-ns-$n $__BPFFS_PATH__/ns-$n -t bpf
+done
+
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r0 ip netns exec ns-r0 ip l set dev r0r1 xdp obj $__BPF__/flsw_backbone_xdp.o section encap
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r0 ip netns exec ns-r0 ip l set dev r0r2 xdp obj $__BPF__/flsw_backbone_xdp.o section encap
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r1 ip netns exec ns-r1 ip l set dev r1r0 xdp obj $__BPF__/flsw_backbone_xdp.o section encap
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r1 ip netns exec ns-r1 ip l set dev r1r2 xdp obj $__BPF__/flsw_backbone_xdp.o section encap
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r2 ip netns exec ns-r2 ip l set dev r2r0 xdp obj $__BPF__/flsw_backbone_xdp.o section encap
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r2 ip netns exec ns-r2 ip l set dev r2r1 xdp obj $__BPF__/flsw_backbone_xdp.o section encap
+
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r0 ip netns exec ns-r0 ip -6 r add e::/64 via c::2 metric 10 encap bpf xmit obj $__BPF__/flsw_ingress_lwt.o section lpm-encap
+
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r0 flswctl ingress set e::/64 c::2 1
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r2 flswctl backbone set 1 d::1 2
+
+ip netns exec ns-r1 stdbuf -o0 tcpdump -nnevvv -i r1h1 host a::1 and host e::1  &>/tmp/flsw_test_r1h1.log &
+pids=$!
+ip netns exec ns-r0 stdbuf -o0 tcpdump -nnevvv -i r0r2 host a::1 and host e::1  &>/tmp/flsw_test_r0r2.log &
+pids="$pids $!"
+ip netns exec ns-r0 stdbuf -o0 tcpdump -nnevvv -i r0r1 host a::1 and host e::1  &>/tmp/flsw_test_r0r1.log &
+pids="$pids $!"
+ip netns exec ns-r2 stdbuf -o0 tcpdump -nnevvv -i r2r1 host a::1 and host e::1  &>/tmp/flsw_test_r2r1.log &
+pids="$pids $!"
+sleep 1
+ip netns exec ns-h0 ping -qc 3 e::1 | expect_has '3 received'
+sleep 1
+for p in $pids; do
+    kill $pids || :
+done
+
+cat /tmp/flsw_test_r1h1.log | expect_has 'a::1 > e::1: .* ICMP6, echo request, seq 3'
+cat /tmp/flsw_test_r1h1.log | expect_has 'e::1 > a::1: .* ICMP6, echo reply, seq 3'
+
+cat /tmp/flsw_test_r0r2.log | expect_has 'flowlabel 0x00001.*a::1 > e::1: .*srcrt'
+# cat /tmp/flsw_test_r2r1.log | expect_has 'a::1 > e::1: .* ICMP6, echo request, seq 1'
+
+cat /tmp/flsw_test_r0r1.log | expect_has 'e::1 > a::1: .* ICMP6, echo reply, seq 3'
+
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r0 ip netns exec ns-r0 ip l set dev r0r1 xdp off
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r0 ip netns exec ns-r0 ip l set dev r0r2 xdp off
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r1 ip netns exec ns-r1 ip l set dev r1r0 xdp off
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r1 ip netns exec ns-r1 ip l set dev r1r2 xdp off
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r2 ip netns exec ns-r2 ip l set dev r2r0 xdp off
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r2 ip netns exec ns-r2 ip l set dev r2r1 xdp off
+
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r0 ip netns exec ns-r0 ip -6 r del e::/64 via c::2
+
+for m in $__BPFFS_PATH__/*; do
+    umount $m
+done
+rm -rf $__BPFFS_PATH__

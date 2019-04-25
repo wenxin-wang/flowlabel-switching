@@ -3,7 +3,6 @@
 set -a
 
 __DIR__=$(cd ${BASH_SOURCE[0]%/*} && pwd)
-__DIR__=$(pwd)
 __SRC__=$(cd $__DIR__/.. && pwd)
 __TOOLS__=$__SRC__/tools
 __BPF__=$__SRC__/bpf
@@ -12,6 +11,8 @@ __BPFFS_PATH__=/run/flsw/bpf
 . $__TEST__/common.sh
 
 set +a
+
+NOPOST=${NOPOST:-0}
 
 export PATH=$PATH:$__SRC__/tools/
 
@@ -39,6 +40,9 @@ run_test() {
 
 run_post() {
     local dir=$1
+    if [ z"$NOPOST" = z1 ]; then
+	return
+    fi
     if [ -f $dir/post ] && [ -x $dir/post ]; then
         if ! $dir/post; then
             log_error $dir/post failed

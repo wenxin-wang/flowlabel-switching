@@ -6,13 +6,18 @@ PREFIX ?= /usr/local
 
 SHARED_DIR ?= $(DESTDIR)$(PREFIX)/share/flsw
 
+ifdef USE_XDPCAP
+CPPFLAGS += -DUSE_XDPCAP
+endif
+
+
 all: flsw_ingress_lwt.o flsw_backbone_xdp.o
 
 flsw_ingress_lwt.o: flsw_ingress_lwt.c
-	clang -O2 -Wall -target bpf -c flsw_ingress_lwt.c -o flsw_ingress_lwt.o
+	clang -O2 -Wall -target bpf $(CPPFLAGS) -c flsw_ingress_lwt.c -o flsw_ingress_lwt.o
 
 flsw_backbone_xdp.o: flsw_backbone_xdp.c
-	clang -O2 -Wall -target bpf -c flsw_backbone_xdp.c -o flsw_backbone_xdp.o
+	clang -O2 -Wall -target bpf $(CPPFLAGS) -c flsw_backbone_xdp.c -o flsw_backbone_xdp.o
 
 install: flsw_ingress_lwt.o flsw_backbone_xdp.o
 	$(INSTALL) -d -m 755 $(SHARED_DIR)

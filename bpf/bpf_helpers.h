@@ -47,6 +47,7 @@ static int BPF_FUNC(trace_printk, const char *fmt, int fmt_size, ...);
 static int BPF_FUNC(lwt_push_encap, struct __sk_buff * skb, __u32 type,
 		    void * hdr, __u32 len);
 static int BPF_FUNC(xdp_adjust_head, struct xdp_md * ctx, int offset);
+static int BPF_FUNC(tail_call, void *ctx, void *map, int action);
 
 
 #define printk(fmt, ...)                                                       \

@@ -10,4 +10,8 @@ uninstall:
 	$(MAKE) -C bpf uninstall
 	$(MAKE) -C tools uninstall
 
+clean:
+	$(MAKE) -C bpf clean
+	$(MAKE) -C tools clean
+
 .PHONY: all install uninstall

@@ -2,6 +2,16 @@
 
 #include <linux/if_ether.h>
 
+#ifdef USE_XDPCAP
+static __always_inline enum xdp_action xdpcap_exit(struct xdp_md *ctx,
+						   struct bpf_elf_map *hook,
+						   enum xdp_action action)
+{
+	tail_call((void *)ctx, hook, action);
+	return action;
+}
+#endif
+
 struct bpf_elf_map flsw_backbone_nexthop_map __section("maps") = {
 	// .id             = 1,
 	.type = BPF_MAP_TYPE_HASH,
@@ -11,6 +21,24 @@ struct bpf_elf_map flsw_backbone_nexthop_map __section("maps") = {
 	.max_elem = MAX_LABEL_ENTRIES,
 	.flags = BPF_F_NO_PREALLOC,
 };
+
+#ifdef USE_XDPCAP
+struct bpf_elf_map xdpcap_pop_hook __section("maps") = {
+	.type = BPF_MAP_TYPE_PROG_ARRAY,
+	.size_key = sizeof(int),
+	.size_value = sizeof(int),
+	.max_elem = 5, // The max value of XDP_* constants
+	.pinning = PIN_GLOBAL_NS,
+};
+
+struct bpf_elf_map xdpcap_redir_hook __section("maps") = {
+	.type = BPF_MAP_TYPE_PROG_ARRAY,
+	.size_key = sizeof(int),
+	.size_value = sizeof(int),
+	.max_elem = 5, // The max value of XDP_* constants
+	.pinning = PIN_GLOBAL_NS,
+};
+#endif
 
 static __always_inline int pop_to_native_stack(struct xdp_md *ctx,
 					       struct ethhdr *eth,
@@ -22,10 +50,19 @@ static __always_inline int pop_to_native_stack(struct xdp_md *ctx,
 	void *data_end = (void *)(long)ctx->data_end;
 	if (mode == FLSW_MODE_INLINE) {
 		ip6h_clear_flowlabel(ip6h);
+#ifdef USE_XDPCAP
+		return xdpcap_exit(ctx, &xdpcap_pop_hook, XDP_PASS);
+#else
 		return XDP_PASS;
+#endif
 	}
-        if (data + FLSW_ENCAP_OVERHEAD + sizeof(oeth) > data_end)
-                return XDP_PASS;
+        if (data + FLSW_ENCAP_OVERHEAD + sizeof(oeth) > data_end) {
+#ifdef USE_XDPCAP
+		return xdpcap_exit(ctx, &xdpcap_pop_hook, XDP_PASS);
+#else
+		return XDP_PASS;
+#endif
+	}
 	oeth = *eth;
 	xdp_adjust_head(ctx, FLSW_ENCAP_OVERHEAD);
 	data = (void *)(long)ctx->data;
@@ -33,7 +70,11 @@ static __always_inline int pop_to_native_stack(struct xdp_md *ctx,
 	if (data + sizeof(oeth) > data_end)
 		return XDP_PASS;
 	__builtin_memcpy(data, &oeth, sizeof(oeth));
+#ifdef USE_XDPCAP
+	return xdpcap_exit(ctx, &xdpcap_pop_hook, XDP_PASS);
+#else
 	return XDP_PASS;
+#endif
 }
 
 static __always_inline int do_redirect_v6(struct xdp_md *ctx,
@@ -76,7 +117,12 @@ static __always_inline int do_redirect_v6(struct xdp_md *ctx,
 
 		__builtin_memcpy(eth->h_dest, fib_params.dmac, ETH_ALEN);
 		__builtin_memcpy(eth->h_source, fib_params.smac, ETH_ALEN);
-		return redirect(fib_params.ifindex, 0);
+		ret = redirect(fib_params.ifindex, 0);
+#ifdef USE_XDPCAP
+		return xdpcap_exit(ctx, &xdpcap_redir_hook, ret);
+#else
+		return ret;
+#endif
 	}
 
 	return pop_to_native_stack(ctx, eth, ip6h, mode);

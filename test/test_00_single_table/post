@@ -17,6 +17,7 @@ rm /tmp/flsw_test*.log
 for m in $__BPFFS_PATH__/*; do
     umount $m
 done
+sleep 1
 rm -rf $__BPFFS_PATH__
 
 exit 0

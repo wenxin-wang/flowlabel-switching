@@ -55,4 +55,5 @@ TC_BPF_MNT=$__BPFFS_PATH__/ns-r0 ip netns exec ns-r0 ip -6 r del e::/64 via c::2
 for m in $__BPFFS_PATH__/*; do
     umount $m
 done
+sleep 1
 rm -rf $__BPFFS_PATH__

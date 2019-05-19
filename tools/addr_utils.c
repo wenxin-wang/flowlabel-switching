@@ -34,9 +34,9 @@ int parse_prefix6(const char *str, struct in6_addr *addr, __u32 *plen)
 	}
 	*slash = '/';
 	len = atoi(slash + 1);
-	if (len <= 0 || len > 96) {
+	if (len <= 0 || len > 128) {
 		errno = EINVAL;
-		fprintf(stderr, "error: prefix length %d must be in (0, 96]",
+		fprintf(stderr, "error: prefix length %d must be in (0, 128]",
 			len);
 		return -errno;
 	}

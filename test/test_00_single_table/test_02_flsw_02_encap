@@ -15,7 +15,7 @@ TC_BPF_MNT=$__BPFFS_PATH__/ns-r1 ip netns exec ns-r1 ip l set dev r1r2 xdp obj $
 TC_BPF_MNT=$__BPFFS_PATH__/ns-r2 ip netns exec ns-r2 ip l set dev r2r0 xdp obj $__BPF__/flsw_backbone_xdp.o section encap
 TC_BPF_MNT=$__BPFFS_PATH__/ns-r2 ip netns exec ns-r2 ip l set dev r2r1 xdp obj $__BPF__/flsw_backbone_xdp.o section encap
 
-TC_BPF_MNT=$__BPFFS_PATH__/ns-r0 ip netns exec ns-r0 ip -6 r add e::/64 via c::2 metric 10 encap bpf xmit obj $__BPF__/flsw_ingress_lwt.o section lpm-encap
+TC_BPF_MNT=$__BPFFS_PATH__/ns-r0 ip netns exec ns-r0 ip -6 r add e::/64 via c::2 metric 10 encap bpf xmit obj $__BPF__/flsw_ingress_lwt.o section lpm-encap headroom 48
 
 TC_BPF_MNT=$__BPFFS_PATH__/ns-r0 flswctl ingress set e::/64 c::2 1
 TC_BPF_MNT=$__BPFFS_PATH__/ns-r2 flswctl backbone set 1 d::1 2
